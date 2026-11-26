@@ -5,10 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
   <meta name="apple-mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
-  <meta name="apple-mobile-web-app-title" content="TCG Grader" />
   <meta name="theme-color" content="#0f172a" />
-  <link id="manifestLink" rel="manifest" />
-  <link id="appleIcon" rel="apple-touch-icon" />
   <title>TCG Pre-Grader | PSA, BGS & CGC Scanner</title>
   <style>
     * { box-sizing: border-box; margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
@@ -21,11 +18,13 @@
     .tab-btn { flex: 1; background: transparent; color: #94a3b8; border: none; padding: 8px; border-radius: 7px; font-weight: 600; font-size: 0.85rem; cursor: pointer; }
     .tab-btn.selected { background: #0284c7; color: #ffffff; }
     .controls { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 12px; }
-    label.btn { flex: 1; min-width: 120px; background: #0284c7; color: white; border: none; padding: 12px; border-radius: 10px; font-weight: 600; font-size: 0.9rem; text-align: center; cursor: pointer; display: block; }
+    button.action, label.btn { flex: 1; min-width: 120px; background: #0284c7; color: white; border: none; padding: 12px; border-radius: 10px; font-weight: 600; font-size: 0.9rem; text-align: center; cursor: pointer; display: block; }
     label.secondary { background: #334155; color: #e2e8f0; }
+    button.snap { background: #10b981; }
     input[type="file"] { display: none; }
     .canvas-wrap { position: relative; width: 100%; background: #020617; border-radius: 10px; overflow: hidden; display: flex; justify-content: center; align-items: center; touch-action: none; }
     canvas#mainCanvas { max-width: 100%; max-height: 58vh; display: block; cursor: crosshair; }
+    video#liveVideo { width: 100%; max-height: 58vh; display: none; object-fit: cover; }
     .tip { font-size: 0.78rem; color: #94a3b8; margin-top: 8px; line-height: 1.45; }
     .results-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 12px; }
     .stat { background: #0f172a; padding: 10px; border-radius: 10px; border: 1px solid #334155; }
@@ -48,7 +47,6 @@
     .shop-links { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 8px; }
     .shop-btn { display: block; background: #0f172a; border: 1px solid #334155; color: #e2e8f0; text-decoration: none; padding: 10px; border-radius: 8px; font-size: 0.8rem; font-weight: 600; text-align: center; }
     .shop-btn span { display: block; font-size: 0.7rem; color: #38bdf8; margin-top: 2px; }
-    .install-note { font-size: 0.72rem; color: #64748b; text-align: center; max-width: 520px; margin-top: 4px; line-height: 1.4; }
   </style>
 </head>
 <body>
@@ -71,14 +69,14 @@
     </div>
 
     <div class="controls">
-      <label class="btn" for="cameraInput">📸 Take Photo</label>
-      <input type="file" id="cameraInput" accept="image/*" capture="environment" />
-
-      <label class="btn secondary" for="uploadInput">🖼️ Photo Library</label>
+      <button class="action" id="openCamBtn">📷 Live Camera</button>
+      <button class="action snap" id="captureBtn" style="display:none;">📸 Snap Card</button>
+      <label class="btn secondary" for="uploadInput">🖼️ Pick Photo</label>
       <input type="file" id="uploadInput" accept="image/*" />
     </div>
 
     <div class="canvas-wrap">
+      <video id="liveVideo" autoplay playsinline muted></video>
       <canvas id="mainCanvas"></canvas>
     </div>
     <p class="tip" id="statusTip">
@@ -147,20 +145,29 @@
     </div>
   </div>
 
-  <p class="install-note">
-    📲 Add to Home Screen to install as an app. Pre-grade estimate only; not affiliated with PSA, BGS, or CGC.
-  </p>
-
   <script>
-    (function setupPWA() {
-      const iconCanvas = document.createElement('canvas');
-      iconCanvas.width = 512; iconCanvas.height = 512;
-      const ictx = iconCanvas.getContext('2d');
-      ictx.fillStyle = '#0f172a'; ictx.fillRect(0, 0, 512, 512);
-      ictx.strokeStyle = '#38bdf8'; ictx.lineWidth = 28; ictx.strokeRect(96, 56, 320, 400);
-      ictx.strokeStyle = '#22c55e'; ictx.lineWidth = 18; ictx.strokeRect(136, 96, 240, 320);
-      ictx.fillStyle = '#ffffff'; ictx.font = 'bold 76px sans-serif'; ictx.textAlign = 'center';
-      ictx.fillText('TCG', 256, 280);
-      const iconUrl = iconCanvas.toDataURL('image/png');
-      document.getElementById('appleIcon').href = iconUrl;
+    const video = document.getElementById('liveVideo');
+    const canvas = document.getElementById('mainCanvas');
+    const ctx = canvas.getContext('2d');
+    const openCamBtn = document.getElementById('openCamBtn');
+    const captureBtn = document.getElementById('captureBtn');
+    const uploadInput = document.getElementById('uploadInput');
+    const statusTip = document.getElementById('statusTip');
 
+    let currentSide = 'front';
+    let currentGrader = 'PSA';
+    let activeStream = null;
+    let dragging = null;
+
+    const state = {
+      front: {
+        img: null,
+        lines: { outerL: 0.15, outerR: 0.85, outerT: 0.10, outerB: 0.90, innerL: 0.22, innerR: 0.78, innerT: 0.16, innerB: 0.84 }
+      },
+      back: {
+        img: null,
+        lines: { outerL: 0.15, outerR: 0.85, outerT: 0.10, outerB: 0.90, innerL: 0.22, innerR: 0.78, innerT: 0.16, innerB: 0.84 }
+      }
+    };
+
+    function setSide(side) {
