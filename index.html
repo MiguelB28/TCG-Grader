@@ -17,8 +17,8 @@
     .tab-btn { flex: 1; background: transparent; color: #94a3b8; border: none; padding: 8px; border-radius: 7px; font-weight: 600; font-size: 0.85rem; cursor: pointer; }
     .tab-btn.selected { background: #0284c7; color: #ffffff; }
     .controls { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 12px; }
-    button.action, label.btn { flex: 1; min-width: 120px; background: #0284c7; color: white; border: none; padding: 12px; border-radius: 10px; font-weight: 600; font-size: 0.9rem; text-align: center; cursor: pointer; display: block; }
-    label.secondary { background: #334155; color: #e2e8f0; }
+    button.action, label.btn { flex: 1; min-width: 100px; background: #0284c7; color: white; border: none; padding: 11px; border-radius: 10px; font-weight: 600; font-size: 0.88rem; text-align: center; cursor: pointer; display: block; }
+    label.secondary, button.secondary { background: #334155; color: #e2e8f0; }
     button.snap { background: #10b981; }
     input[type="file"] { display: none; }
     .canvas-wrap { position: relative; width: 100%; background: #020617; border-radius: 10px; overflow: hidden; display: flex; justify-content: center; align-items: center; touch-action: none; }
@@ -26,7 +26,7 @@
     video#liveVideo { width: 100%; max-height: 56vh; display: none; object-fit: cover; }
     .cam-guide { position: absolute; width: 66%; aspect-ratio: 2.5 / 3.5; border: 3px dashed #38bdf8; border-radius: 14px; box-shadow: 0 0 0 9999px rgba(2, 6, 23, 0.55); pointer-events: none; display: none; }
     .cam-guide span { position: absolute; top: -26px; left: 50%; transform: translateX(-50%); background: #0284c7; color: #fff; font-size: 0.72rem; font-weight: 700; padding: 2px 8px; border-radius: 6px; white-space: nowrap; }
-    .nudge-bar { display: flex; align-items: center; justify-content: space-between; gap: 6px; margin-top: 10px; background: #0f172a; padding: 8px; border-radius: 10px; border: 1px solid #334155; }
+    .nudge-bar { display: flex; align-items: center; justify-content: space-between; gap: 6px; margin-top: 8px; background: #0f172a; padding: 8px; border-radius: 10px; border: 1px solid #334155; }
     .nudge-label { font-size: 0.78rem; color: #94a3b8; font-weight: 600; }
     .nudge-btns { display: flex; gap: 6px; }
     .nudge-btn { background: #1e293b; color: #f8fafc; border: 1px solid #475569; padding: 6px 12px; border-radius: 8px; font-weight: 700; font-size: 0.9rem; cursor: pointer; }
@@ -55,7 +55,6 @@
   </style>
 </head>
 <body>
-
   <header>
     <h1>TCG Pre-Grader</h1>
     <span class="badge">55/45 Safe-Zone</span>
@@ -76,6 +75,7 @@
     <div class="controls">
       <button type="button" class="action" id="openCamBtn">📷 Live Camera</button>
       <button type="button" class="action snap" id="captureBtn" style="display:none;">📸 Snap Card</button>
+      <button type="button" class="action secondary" id="torchBtn" style="display:none;">🔦 Light On</button>
       <label class="btn secondary" for="uploadInput">🖼️ Pick Photo</label>
       <input type="file" id="uploadInput" accept="image/*" />
     </div>
@@ -94,10 +94,16 @@
       </div>
     </div>
 
+    <div class="nudge-bar">
+      <span class="nudge-label">☀️ Brighten Photo</span>
+      <input type="range" id="brightRange" min="100" max="180" value="100" style="flex:1; margin-left:10px;" />
+    </div>
+
     <p class="tip" id="statusTip">
-      Tap any <span style="color:#38bdf8;">blue</span> or <span style="color:#f43f5e;">red</span> line to drag it, then use <strong>◀ / ▲</strong> & <strong>▶ / ▼</strong> for micro-adjustments.
+      Tap any <span style="color:#38bdf8;">blue</span> or <span style="color:#f43f5e;">red</span> line to drag it, or use <strong>Pick Photo → Take Photo</strong> to use your phone's flash.
     </p>
   </div>
+
   <div class="card-box">
     <div class="results-grid">
       <div class="stat">
@@ -158,7 +164,6 @@
       </a>
     </div>
   </div>
-
   <script>
     const video = document.getElementById('liveVideo');
     const camGuide = document.getElementById('camGuide');
@@ -166,13 +171,16 @@
     const ctx = canvas.getContext('2d');
     const openCamBtn = document.getElementById('openCamBtn');
     const captureBtn = document.getElementById('captureBtn');
+    const torchBtn = document.getElementById('torchBtn');
     const uploadInput = document.getElementById('uploadInput');
     const statusTip = document.getElementById('statusTip');
     const selectedLineLabel = document.getElementById('selectedLineLabel');
+    const brightRange = document.getElementById('brightRange');
 
     let currentSide = 'front';
     let currentGrader = 'PSA';
     let activeStream = null;
+    let torchOn = false;
     let dragging = null;
     let selectedLine = 'outerL';
 
@@ -201,6 +209,7 @@
 
     document.getElementById('nudgeMinus').addEventListener('click', () => nudgeSelected(-0.002));
     document.getElementById('nudgePlus').addEventListener('click', () => nudgeSelected(0.002));
+    brightRange.addEventListener('input', () => render());
 
     function setSide(side) {
       currentSide = side;
@@ -227,6 +236,19 @@
     document.getElementById('selCorners').addEventListener('change', updateCalculations);
     document.getElementById('selSurface').addEventListener('change', updateCalculations);
 
+    torchBtn.addEventListener('click', async () => {
+      torchOn = !torchOn;
+      torchBtn.textContent = torchOn ? '🔦 Light Off' : '🔦 Light On';
+      let hardwareWorked = false;
+      if (activeStream) {
+        const track = activeStream.getVideoTracks().item(0);
+        if (track && track.applyConstraints) {
+          try { await track.applyConstraints({ advanced: [{ torch: torchOn }] }); hardwareWorked = true; } catch (e) {}
+        }
+      }
+      document.body.style.background = (!hardwareWorked && torchOn) ? '#ffffff' : '#0f172a';
+    });
+
     openCamBtn.addEventListener('click', async () => {
       try {
         activeStream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: { ideal: 'environment' } }, audio: false });
@@ -237,9 +259,10 @@
         canvas.style.display = 'none';
         openCamBtn.style.display = 'none';
         captureBtn.style.display = 'block';
-        statusTip.textContent = 'Line up the card edges with the dashed blue box, then tap "Snap Card".';
+        torchBtn.style.display = 'block';
+        statusTip.textContent = 'Fit card inside dashed box and tap "Snap Card".';
       } catch (err) {
-        statusTip.textContent = 'Live camera blocked—tap "Pick Photo" to select a photo from your phone.';
+        statusTip.textContent = 'Live camera blocked—tap "Pick Photo" to take or choose a photo.';
       }
     });
 
@@ -255,28 +278,34 @@
       camGuide.style.display = 'none';
       canvas.style.display = 'block';
       captureBtn.style.display = 'none';
+      torchBtn.style.display = 'none';
+      torchOn = false;
+      document.body.style.background = '#0f172a';
       openCamBtn.style.display = 'block';
-      statusTip.innerHTML = 'Tap any line to drag it, then use <strong>◀ / ▲</strong> & <strong>▶ / ▼</strong> for micro-adjustments.';
+      statusTip.textContent = 'Photo snapped! Drag any line or use the arrows below.';
       loadCurrentImage();
     });
 
-    uploadInput.addEventListener('change', (e) => {
+    uploadInput.addEventListener('change', async (e) => {
       const file = e.target.files && e.target.files.item(0);
       if (!file) return;
-      const url = URL.createObjectURL(file);
-      const rawImg = new Image();
-      rawImg.onload = () => {
+      statusTip.textContent = 'Loading photo...';
+      try {
+        const bitmap = await createImageBitmap(file);
         const maxDim = 900;
-        const scale = Math.max(rawImg.width, rawImg.height) > maxDim ? maxDim / Math.max(rawImg.width, rawImg.height) : 1;
+        const scale = Math.max(bitmap.width, bitmap.height) > maxDim ? maxDim / Math.max(bitmap.width, bitmap.height) : 1;
         const offCanvas = document.createElement('canvas');
-        offCanvas.width = Math.round(rawImg.width * scale);
-        offCanvas.height = Math.round(rawImg.height * scale);
-        offCanvas.getContext('2d').drawImage(rawImg, 0, 0, offCanvas.width, offCanvas.height);
-        URL.revokeObjectURL(url);
+        offCanvas.width = Math.round(bitmap.width * scale);
+        offCanvas.height = Math.round(bitmap.height * scale);
+        offCanvas.getContext('2d').drawImage(bitmap, 0, 0, offCanvas.width, offCanvas.height);
+        bitmap.close();
         state[currentSide].img = offCanvas;
+        canvas.style.display = 'block';
+        statusTip.textContent = 'Photo loaded! Drag any line or use the arrows below.';
         loadCurrentImage();
-      };
-      rawImg.src = url;
+      } catch (err) {
+        statusTip.textContent = 'Photo error: ' + err.message;
+      }
       e.target.value = '';
     });
 
@@ -287,45 +316,38 @@
         canvas.height = img.height;
         render();
       } else {
-        canvas.width = 400;
-        canvas.height = 540;
-        ctx.fillStyle = '#0f172a';
-        ctx.fillRect(0, 0, canvas.width, canvas.height);
-        ctx.fillStyle = '#64748b';
-        ctx.font = '15px sans-serif';
-        ctx.textAlign = 'center';
+        canvas.width = 400; canvas.height = 540;
+        ctx.fillStyle = '#0f172a'; ctx.fillRect(0, 0, canvas.width, canvas.height);
+        ctx.fillStyle = '#64748b'; ctx.font = '15px sans-serif'; ctx.textAlign = 'center';
         ctx.fillText('Tap "Live Camera" or "Pick Photo" (' + currentSide.toUpperCase() + ')', 200, 265);
-        drawGuides();
-        updateCalculations();
-        clearCorners();
+        drawGuides(); updateCalculations(); clearCorners();
       }
     }
 
     function clearCorners() {
       ['cTL', 'cTR', 'cBL', 'cBR'].forEach(id => {
         const cCtx = document.getElementById(id).getContext('2d');
-        cCtx.fillStyle = '#020617';
-        cCtx.fillRect(0, 0, 160, 160);
+        cCtx.fillStyle = '#020617'; cCtx.fillRect(0, 0, 160, 160);
       });
     }
 
     function render() {
       const img = state[currentSide].img;
-      if (img && img.width > 0) ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
-      drawGuides();
-      updateCalculations();
-      updateCorners();
+      if (img && img.width > 0) {
+        const b = parseInt(brightRange.value, 10);
+        ctx.filter = 'brightness(' + b + '%) contrast(' + Math.round(100 + (b - 100) * 0.5) + '%)';
+        ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+        ctx.filter = 'none';
+      }
+      drawGuides(); updateCalculations(); updateCorners();
     }
 
     function drawGuides() {
       const lines = state[currentSide].lines;
-      const w = canvas.width, h = canvas.height;
-      const baseW = Math.max(2, w / 220);
-
+      const w = canvas.width, h = canvas.height, baseW = Math.max(2, w / 220);
       const totalLR = Math.max(0.002, (lines.innerL - lines.outerL) + (lines.outerR - lines.innerR));
       const totalTB = Math.max(0.002, (lines.innerT - lines.outerT) + (lines.outerB - lines.innerB));
-      const minPct = currentSide === 'front' ? 0.45 : 0.25;
-      const maxPct = currentSide === 'front' ? 0.55 : 0.75;
+      const minPct = currentSide === 'front' ? 0.45 : 0.25, maxPct = currentSide === 'front' ? 0.55 : 0.75;
 
       ctx.save();
       ctx.strokeStyle = 'rgba(34, 197, 94, 0.85)';
@@ -345,20 +367,14 @@
       });
     }
 
-    function drawLine(x1, y1, x2, y2) {
-      ctx.beginPath(); ctx.moveTo(x1, y1); ctx.lineTo(x2, y2); ctx.stroke();
-    }
+    function drawLine(x1, y1, x2, y2) { ctx.beginPath(); ctx.moveTo(x1, y1); ctx.lineTo(x2, y2); ctx.stroke(); }
 
     function getSideMaxRatio(side) {
       const l = state[side].lines;
-      const leftB = Math.max(0.001, l.innerL - l.outerL);
-      const rightB = Math.max(0.001, l.outerR - l.innerR);
-      const lPct = Math.round((leftB / (leftB + rightB)) * 100);
-      const rPct = 100 - lPct;
-      const topB = Math.max(0.001, l.innerT - l.outerT);
-      const botB = Math.max(0.001, l.outerB - l.innerB);
-      const tPct = Math.round((topB / (topB + botB)) * 100);
-      const bPct = 100 - tPct;
+      const leftB = Math.max(0.001, l.innerL - l.outerL), rightB = Math.max(0.001, l.outerR - l.innerR);
+      const lPct = Math.round((leftB / (leftB + rightB)) * 100), rPct = 100 - lPct;
+      const topB = Math.max(0.001, l.innerT - l.outerT), botB = Math.max(0.001, l.outerB - l.innerB);
+      const tPct = Math.round((topB / (topB + botB)) * 100), bPct = 100 - tPct;
       return { lPct, rPct, tPct, bPct, worst: Math.max(lPct, rPct, tPct, bPct) };
     }
 
@@ -369,18 +385,14 @@
       setGradeBadge('lrGrade', Math.max(cur.lPct, cur.rPct));
       setGradeBadge('tbGrade', Math.max(cur.tPct, cur.bPct));
 
-      const frontWorst = getSideMaxRatio('front').worst;
-      const backWorst = getSideMaxRatio('back').worst;
+      const frontWorst = getSideMaxRatio('front').worst, backWorst = getSideMaxRatio('back').worst;
       const cornerScore = parseInt(document.getElementById('selCorners').value, 10);
       const surfaceScore = parseInt(document.getElementById('selSurface').value, 10);
-
       let centeringCap = frontWorst > 60 ? 8 : (frontWorst > 55 ? 9 : 10);
       if (state.back.img && backWorst > (currentGrader === 'BGS' ? 60 : 75)) centeringCap = Math.min(centeringCap, 9);
 
       const finalGrade = Math.min(centeringCap, cornerScore, surfaceScore);
-      const estEl = document.getElementById('overallEstimate');
-      const noteEl = document.getElementById('overallNote');
-
+      const estEl = document.getElementById('overallEstimate'), noteEl = document.getElementById('overallNote');
       if (finalGrade === 10) {
         estEl.textContent = currentGrader === 'BGS' ? 'BGS 9.5 / 10 Contender' : currentGrader + ' 10 Contender';
         estEl.style.color = '#34d399';
@@ -426,8 +438,7 @@
     }
 
     function updateCorners() {
-      const img = state[currentSide].img;
-      const lines = state[currentSide].lines;
+      const img = state[currentSide].img, lines = state[currentSide].lines;
       if (!img || !img.width) return;
       const w = canvas.width, h = canvas.height, z = Math.min(w, h) * 0.14;
       [
@@ -445,24 +456,19 @@
     function getPos(e) {
       const rect = canvas.getBoundingClientRect();
       const touch = e.touches && e.touches.item(0);
-      const clientX = touch ? touch.clientX : e.clientX;
-      const clientY = touch ? touch.clientY : e.clientY;
+      const clientX = touch ? touch.clientX : e.clientX, clientY = touch ? touch.clientY : e.clientY;
       return { x: (clientX - rect.left) / rect.width, y: (clientY - rect.top) / rect.height };
     }
 
     function startDrag(e) {
-      const lines = state[currentSide].lines;
-      const p = getPos(e);
+      const lines = state[currentSide].lines, p = getPos(e);
       const best = [
         { name: 'outerL', dist: Math.abs(p.x - lines.outerL) }, { name: 'outerR', dist: Math.abs(p.x - lines.outerR) },
         { name: 'innerL', dist: Math.abs(p.x - lines.innerL) }, { name: 'innerR', dist: Math.abs(p.x - lines.innerR) },
         { name: 'outerT', dist: Math.abs(p.y - lines.outerT) }, { name: 'outerB', dist: Math.abs(p.y - lines.outerB) },
         { name: 'innerT', dist: Math.abs(p.y - lines.innerT) }, { name: 'innerB', dist: Math.abs(p.y - lines.innerB) }
       ].reduce((min, cur) => cur.dist < min.dist ? cur : min);
-      if (best.dist < 0.06) {
-        dragging = best.name;
-        selectLine(best.name);
-      }
+      if (best.dist < 0.06) { dragging = best.name; selectLine(best.name); }
     }
 
     function onDrag(e) {
