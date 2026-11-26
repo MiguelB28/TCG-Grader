@@ -22,9 +22,15 @@
     button.snap { background: #10b981; }
     input[type="file"] { display: none; }
     .canvas-wrap { position: relative; width: 100%; background: #020617; border-radius: 10px; overflow: hidden; display: flex; justify-content: center; align-items: center; touch-action: none; }
-    canvas#mainCanvas { max-width: 100%; max-height: 58vh; display: block; cursor: crosshair; }
-    video#liveVideo { width: 100%; max-height: 58vh; display: none; object-fit: cover; }
-    .tip { font-size: 0.78rem; color: #94a3b8; margin-top: 8px; line-height: 1.45; }
+    canvas#mainCanvas { max-width: 100%; max-height: 56vh; display: block; cursor: crosshair; }
+    video#liveVideo { width: 100%; max-height: 56vh; display: none; object-fit: cover; }
+    .cam-guide { position: absolute; width: 66%; aspect-ratio: 2.5 / 3.5; border: 3px dashed #38bdf8; border-radius: 14px; box-shadow: 0 0 0 9999px rgba(2, 6, 23, 0.55); pointer-events: none; display: none; }
+    .cam-guide span { position: absolute; top: -26px; left: 50%; transform: translateX(-50%); background: #0284c7; color: #fff; font-size: 0.72rem; font-weight: 700; padding: 2px 8px; border-radius: 6px; white-space: nowrap; }
+    .nudge-bar { display: flex; align-items: center; justify-content: space-between; gap: 6px; margin-top: 10px; background: #0f172a; padding: 8px; border-radius: 10px; border: 1px solid #334155; }
+    .nudge-label { font-size: 0.78rem; color: #94a3b8; font-weight: 600; }
+    .nudge-btns { display: flex; gap: 6px; }
+    .nudge-btn { background: #1e293b; color: #f8fafc; border: 1px solid #475569; padding: 6px 12px; border-radius: 8px; font-weight: 700; font-size: 0.9rem; cursor: pointer; }
+    .tip { font-size: 0.76rem; color: #94a3b8; margin-top: 8px; line-height: 1.4; }
     .results-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 12px; }
     .stat { background: #0f172a; padding: 10px; border-radius: 10px; border: 1px solid #334155; }
     .stat-label { font-size: 0.75rem; color: #94a3b8; }
@@ -76,24 +82,33 @@
 
     <div class="canvas-wrap">
       <video id="liveVideo" autoplay playsinline muted></video>
+      <div class="cam-guide" id="camGuide"><span>Fit Card Inside Box</span></div>
       <canvas id="mainCanvas"></canvas>
     </div>
+
+    <div class="nudge-bar">
+      <span class="nudge-label" id="selectedLineLabel">Selected: Outer Left</span>
+      <div class="nudge-btns">
+        <button type="button" class="nudge-btn" id="nudgeMinus">◀ / ▲</button>
+        <button type="button" class="nudge-btn" id="nudgePlus">▶ / ▼</button>
+      </div>
+    </div>
+
     <p class="tip" id="statusTip">
-      <strong>Guides:</strong> <span style="color:#38bdf8;">Blue</span> = card edge • <span style="color:#f43f5e;">Red</span> = art border • <span style="color:#22c55e;">Dashed Green</span> = max <strong>55/45</strong> safe zone.
+      Tap any <span style="color:#38bdf8;">blue</span> or <span style="color:#f43f5e;">red</span> line to drag it, then use <strong>◀ / ▲</strong> & <strong>▶ / ▼</strong> for micro-adjustments.
     </p>
   </div>
-
   <div class="card-box">
     <div class="results-grid">
       <div class="stat">
         <div class="stat-label" id="lrLabel">Front Left / Right</div>
         <div class="stat-val" id="lrRatio">50 / 50</div>
-        <div class="grade-pill pass" id="lrGrade">PSA 10 Eligible (≤55/45)</div>
+        <div class="grade-pill pass" id="lrGrade">PSA 10 Eligible (<=55/45)</div>
       </div>
       <div class="stat">
         <div class="stat-label" id="tbLabel">Front Top / Bottom</div>
         <div class="stat-val" id="tbRatio">50 / 50</div>
-        <div class="grade-pill pass" id="tbGrade">PSA 10 Eligible (≤55/45)</div>
+        <div class="grade-pill pass" id="tbGrade">PSA 10 Eligible (<=55/45)</div>
       </div>
     </div>
 
@@ -119,7 +134,7 @@
       <select id="selSurface">
         <option value="10">Clean Holo / No Print Lines (10)</option>
         <option value="9">Light Print Line / Minor Edge (9)</option>
-        <option value="8">Scratches / Dent / Crease (≤8)</option>
+        <option value="8">Scratches / Dent / Crease (<=8)</option>
       </select>
     </div>
 
@@ -146,22 +161,46 @@
 
   <script>
     const video = document.getElementById('liveVideo');
+    const camGuide = document.getElementById('camGuide');
     const canvas = document.getElementById('mainCanvas');
     const ctx = canvas.getContext('2d');
     const openCamBtn = document.getElementById('openCamBtn');
     const captureBtn = document.getElementById('captureBtn');
     const uploadInput = document.getElementById('uploadInput');
     const statusTip = document.getElementById('statusTip');
+    const selectedLineLabel = document.getElementById('selectedLineLabel');
 
     let currentSide = 'front';
     let currentGrader = 'PSA';
     let activeStream = null;
     let dragging = null;
+    let selectedLine = 'outerL';
+
+    const lineNames = {
+      outerL: 'Outer Left (Blue)', outerR: 'Outer Right (Blue)',
+      outerT: 'Outer Top (Blue)', outerB: 'Outer Bottom (Blue)',
+      innerL: 'Inner Left (Red)', innerR: 'Inner Right (Red)',
+      innerT: 'Inner Top (Red)', innerB: 'Inner Bottom (Red)'
+    };
 
     const state = {
-      front: { img: null, lines: { outerL: 0.15, outerR: 0.85, outerT: 0.10, outerB: 0.90, innerL: 0.22, innerR: 0.78, innerT: 0.16, innerB: 0.84 } },
-      back:  { img: null, lines: { outerL: 0.15, outerR: 0.85, outerT: 0.10, outerB: 0.90, innerL: 0.22, innerR: 0.78, innerT: 0.16, innerB: 0.84 } }
+      front: { img: null, lines: { outerL: 0.17, outerR: 0.83, outerT: 0.11, outerB: 0.89, innerL: 0.23, innerR: 0.77, innerT: 0.16, innerB: 0.84 } },
+      back:  { img: null, lines: { outerL: 0.17, outerR: 0.83, outerT: 0.11, outerB: 0.89, innerL: 0.23, innerR: 0.77, innerT: 0.16, innerB: 0.84 } }
     };
+
+    function selectLine(name) {
+      selectedLine = name;
+      selectedLineLabel.textContent = 'Selected: ' + lineNames[name];
+      render();
+    }
+
+    function nudgeSelected(delta) {
+      state[currentSide].lines[selectedLine] = Math.min(0.98, Math.max(0.02, state[currentSide].lines[selectedLine] + delta));
+      render();
+    }
+
+    document.getElementById('nudgeMinus').addEventListener('click', () => nudgeSelected(-0.002));
+    document.getElementById('nudgePlus').addEventListener('click', () => nudgeSelected(0.002));
 
     function setSide(side) {
       currentSide = side;
@@ -194,10 +233,11 @@
         video.srcObject = activeStream;
         await video.play();
         video.style.display = 'block';
+        camGuide.style.display = 'block';
         canvas.style.display = 'none';
         openCamBtn.style.display = 'none';
         captureBtn.style.display = 'block';
-        statusTip.textContent = 'Hold phone flat above card and tap "Snap Card".';
+        statusTip.textContent = 'Line up the card edges with the dashed blue box, then tap "Snap Card".';
       } catch (err) {
         statusTip.textContent = 'Live camera blocked—tap "Pick Photo" to select a photo from your phone.';
       }
@@ -212,10 +252,11 @@
       if (activeStream) { activeStream.getTracks().forEach(t => t.stop()); activeStream = null; }
       state[currentSide].img = offCanvas;
       video.style.display = 'none';
+      camGuide.style.display = 'none';
       canvas.style.display = 'block';
       captureBtn.style.display = 'none';
       openCamBtn.style.display = 'block';
-      statusTip.innerHTML = '<strong>Guides:</strong> <span style="color:#38bdf8;">Blue</span> = card edge • <span style="color:#f43f5e;">Red</span> = art border • <span style="color:#22c55e;">Dashed Green</span> = max <strong>55/45</strong> safe zone.';
+      statusTip.innerHTML = 'Tap any line to drag it, then use <strong>◀ / ▲</strong> & <strong>▶ / ▼</strong> for micro-adjustments.';
       loadCurrentImage();
     });
 
@@ -279,7 +320,7 @@
     function drawGuides() {
       const lines = state[currentSide].lines;
       const w = canvas.width, h = canvas.height;
-      ctx.lineWidth = Math.max(2, w / 220);
+      const baseW = Math.max(2, w / 220);
 
       const totalLR = Math.max(0.002, (lines.innerL - lines.outerL) + (lines.outerR - lines.innerR));
       const totalTB = Math.max(0.002, (lines.innerT - lines.outerT) + (lines.outerB - lines.innerB));
@@ -296,17 +337,12 @@
         .forEach(y => drawLine(lines.outerL * w, y * h, lines.outerR * w, y * h));
       ctx.restore();
 
-      ctx.strokeStyle = '#38bdf8';
-      drawLine(lines.outerL * w, 0, lines.outerL * w, h);
-      drawLine(lines.outerR * w, 0, lines.outerR * w, h);
-      drawLine(0, lines.outerT * h, w, lines.outerT * h);
-      drawLine(0, lines.outerB * h, w, lines.outerB * h);
-
-      ctx.strokeStyle = '#f43f5e';
-      drawLine(lines.innerL * w, 0, lines.innerL * w, h);
-      drawLine(lines.innerR * w, 0, lines.innerR * w, h);
-      drawLine(0, lines.innerT * h, w, lines.innerT * h);
-      drawLine(0, lines.innerB * h, w, lines.innerB * h);
+      ['outerL', 'outerR', 'outerT', 'outerB', 'innerL', 'innerR', 'innerT', 'innerB'].forEach(key => {
+        ctx.strokeStyle = key === selectedLine ? '#facc15' : (key.startsWith('outer') ? '#38bdf8' : '#f43f5e');
+        ctx.lineWidth = key === selectedLine ? baseW * 1.6 : baseW;
+        if (key.endsWith('L') || key.endsWith('R')) drawLine(lines[key] * w, 0, lines[key] * w, h);
+        else drawLine(0, lines[key] * h, w, lines[key] * h);
+      });
     }
 
     function drawLine(x1, y1, x2, y2) {
@@ -372,14 +408,6 @@
         }
       } else if (currentGrader === 'BGS') {
         if (currentSide === 'front') {
-          el.textContent = maxSide <= 55 ? 'PSA 10 Eligible (<=55/45)' : (maxSide <= 60 ? 'PSA 9 / Borderline 10 (<=60/40)' : 'Off-Center (>60/40)');
-          el.className = 'grade-pill ' + (maxSide <= 55 ? 'pass' : (maxSide <= 60 ? 'warn' : 'fail'));
-        } else {
-          el.textContent = maxSide <= 75 ? 'PSA 10 Back Eligible (<=75/25)' : (maxSide <= 90 ? 'PSA 9 Back Eligible (<=90/10)' : 'Off-Center Back (>90/10)');
-          el.className = 'grade-pill ' + (maxSide <= 75 ? 'pass' : (maxSide <= 90 ? 'warn' : 'fail'));
-        }
-      } else if (currentGrader === 'BGS') {
-        if (currentSide === 'front') {
           el.textContent = maxSide === 50 ? 'BGS 10 Black Label (50/50)' : (maxSide <= 55 ? 'BGS 9.5 Gem Mint (<=55/45)' : (maxSide <= 60 ? 'BGS 9 Mint (<=60/40)' : 'Below BGS 9 (>60/40)'));
           el.className = 'grade-pill ' + (maxSide <= 55 ? 'pass' : (maxSide <= 60 ? 'warn' : 'fail'));
         } else {
@@ -431,7 +459,10 @@
         { name: 'outerT', dist: Math.abs(p.y - lines.outerT) }, { name: 'outerB', dist: Math.abs(p.y - lines.outerB) },
         { name: 'innerT', dist: Math.abs(p.y - lines.innerT) }, { name: 'innerB', dist: Math.abs(p.y - lines.innerB) }
       ].reduce((min, cur) => cur.dist < min.dist ? cur : min);
-      if (best.dist < 0.05) dragging = best.name;
+      if (best.dist < 0.06) {
+        dragging = best.name;
+        selectLine(best.name);
+      }
     }
 
     function onDrag(e) {
