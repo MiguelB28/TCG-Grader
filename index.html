@@ -4,7 +4,6 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
   <meta name="apple-mobile-web-app-capable" content="yes" />
-  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
   <meta name="theme-color" content="#0f172a" />
   <title>TCG Pre-Grader | PSA, BGS & CGC Scanner</title>
   <style>
@@ -160,60 +159,8 @@
     let dragging = null;
 
     const state = {
-      front: {
-        img: null,
-        lines: { outerL: 0.15, outerR: 0.85, outerT: 0.10, outerB: 0.90, innerL: 0.22, innerR: 0.78, innerT: 0.16, innerB: 0.84 }
-      },
-      back: {
-        img: null,
-        lines: { outerL: 0.15, outerR: 0.85, outerT: 0.10, outerB: 0.90, innerL: 0.22, innerR: 0.78, innerT: 0.16, innerB: 0.84 }
-      }
-    };
-
-    function setSide(side) {
-      currentSide = side;
-      <div class="big-grade" id="overallEstimate">PSA 10 Contender</div>
-      <div class="stat-label" id="overallNote">Centering within 55/45 + clean corners & surface</div>
-    </div>
-  </div>
-
-  <div class="card-box">
-    <div class="section-title">🛡️ Grading Prep & Chase Packs</div>
-    <div class="shop-links">
-      <a class="shop-btn" href="https://ebay.ca" target="_blank" rel="noopener">
-        Card Saver 1 + Sleeves
-        <span>PSA Submission Prep →</span>
-      </a>
-      <a class="shop-btn" href="https://ebay.ca" target="_blank" rel="noopener">
-        Sealed Pokémon Packs
-        <span>Shop Live Deals →</span>
-      </a>
-    </div>
-  </div>
-
-  <script>
-    const video = document.getElementById('liveVideo');
-    const canvas = document.getElementById('mainCanvas');
-    const ctx = canvas.getContext('2d');
-    const openCamBtn = document.getElementById('openCamBtn');
-    const captureBtn = document.getElementById('captureBtn');
-    const uploadInput = document.getElementById('uploadInput');
-    const statusTip = document.getElementById('statusTip');
-
-    let currentSide = 'front';
-    let currentGrader = 'PSA';
-    let activeStream = null;
-    let dragging = null;
-
-    const state = {
-      front: {
-        img: null,
-        lines: { outerL: 0.15, outerR: 0.85, outerT: 0.10, outerB: 0.90, innerL: 0.22, innerR: 0.78, innerT: 0.16, innerB: 0.84 }
-      },
-      back: {
-        img: null,
-        lines: { outerL: 0.15, outerR: 0.85, outerT: 0.10, outerB: 0.90, innerL: 0.22, innerR: 0.78, innerT: 0.16, innerB: 0.84 }
-      }
+      front: { img: null, lines: { outerL: 0.15, outerR: 0.85, outerT: 0.10, outerB: 0.90, innerL: 0.22, innerR: 0.78, innerT: 0.16, innerB: 0.84 } },
+      back:  { img: null, lines: { outerL: 0.15, outerR: 0.85, outerT: 0.10, outerB: 0.90, innerL: 0.22, innerR: 0.78, innerT: 0.16, innerB: 0.84 } }
     };
 
     function setSide(side) {
@@ -243,10 +190,7 @@
 
     openCamBtn.addEventListener('click', async () => {
       try {
-        activeStream = await navigator.mediaDevices.getUserMedia({
-          video: { facingMode: { ideal: 'environment' } },
-          audio: false
-        });
+        activeStream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: { ideal: 'environment' } }, audio: false });
         video.srcObject = activeStream;
         await video.play();
         video.style.display = 'block';
@@ -255,7 +199,7 @@
         captureBtn.style.display = 'block';
         statusTip.textContent = 'Hold phone flat above card and tap "Snap Card".';
       } catch (err) {
-        statusTip.textContent = 'Live camera blocked—tap "Pick Photo" to choose a picture from your phone.';
+        statusTip.textContent = 'Live camera blocked—tap "Pick Photo" to select a photo from your phone.';
       }
     });
 
@@ -265,12 +209,7 @@
       offCanvas.width = video.videoWidth;
       offCanvas.height = video.videoHeight;
       offCanvas.getContext('2d').drawImage(video, 0, 0);
-
-      if (activeStream) {
-        activeStream.getTracks().forEach(t => t.stop());
-        activeStream = null;
-      }
-
+      if (activeStream) { activeStream.getTracks().forEach(t => t.stop()); activeStream = null; }
       state[currentSide].img = offCanvas;
       video.style.display = 'none';
       canvas.style.display = 'block';
@@ -342,27 +281,19 @@
       const w = canvas.width, h = canvas.height;
       ctx.lineWidth = Math.max(2, w / 220);
 
-      const totalLRBorder = Math.max(0.002, (lines.innerL - lines.outerL) + (lines.outerR - lines.innerR));
-      const totalTBBorder = Math.max(0.002, (lines.innerT - lines.outerT) + (lines.outerB - lines.innerB));
+      const totalLR = Math.max(0.002, (lines.innerL - lines.outerL) + (lines.outerR - lines.innerR));
+      const totalTB = Math.max(0.002, (lines.innerT - lines.outerT) + (lines.outerB - lines.innerB));
       const minPct = currentSide === 'front' ? 0.45 : 0.25;
       const maxPct = currentSide === 'front' ? 0.55 : 0.75;
-
-      const safeLMin = lines.outerL + totalLRBorder * minPct;
-      const safeLMax = lines.outerL + totalLRBorder * maxPct;
-      const safeRMin = lines.outerR - totalLRBorder * maxPct;
-      const safeRMax = lines.outerR - totalLRBorder * minPct;
-
-      const safeTMin = lines.outerT + totalTBBorder * minPct;
-      const safeTMax = lines.outerT + totalTBBorder * maxPct;
-      const safeBMin = lines.outerB - totalTBBorder * maxPct;
-      const safeBMax = lines.outerB - totalTBBorder * minPct;
 
       ctx.save();
       ctx.strokeStyle = 'rgba(34, 197, 94, 0.85)';
       ctx.setLineDash(new Array(6, 4));
       ctx.lineWidth = Math.max(1.5, w / 300);
-      [safeLMin, safeLMax, safeRMin, safeRMax].forEach(x => drawLine(x * w, lines.outerT * h, x * w, lines.outerB * h));
-      [safeTMin, safeTMax, safeBMin, safeBMax].forEach(y => drawLine(lines.outerL * w, y * h, lines.outerR * w, y * h));
+      [lines.outerL + totalLR * minPct, lines.outerL + totalLR * maxPct, lines.outerR - totalLR * maxPct, lines.outerR - totalLR * minPct]
+        .forEach(x => drawLine(x * w, lines.outerT * h, x * w, lines.outerB * h));
+      [lines.outerT + totalTB * minPct, lines.outerT + totalTB * maxPct, lines.outerB - totalTB * maxPct, lines.outerB - totalTB * minPct]
+        .forEach(y => drawLine(lines.outerL * w, y * h, lines.outerR * w, y * h));
       ctx.restore();
 
       ctx.strokeStyle = '#38bdf8';
@@ -388,50 +319,10 @@
       const rightB = Math.max(0.001, l.outerR - l.innerR);
       const lPct = Math.round((leftB / (leftB + rightB)) * 100);
       const rPct = 100 - lPct;
-
       const topB = Math.max(0.001, l.innerT - l.outerT);
       const botB = Math.max(0.001, l.outerB - l.innerB);
       const tPct = Math.round((topB / (topB + botB)) * 100);
       const bPct = 100 - tPct;
-
-      return { lPct, rPct, tPct, bPct, worst: Math.max(lPct, rPct, tPct, bPct) };
-    }
-
-    function updateCalculations() {
-      const cur = getSideMaxRatio(currentSide);
-      document.getElementById('lrRatio').textContent = cur.lPct + ' / ' + cur.rPct;
-      document.getElementById('tbRatio').textContent = cur.tPct + ' / ' + cur.bPct;
-      setGradeBadge('lrGrade', Math.max(cur.lPct, cur.rPct));
-      setGradeBadge('tbGrade', Math.max(cur.tPct, cur.bPct));
-
-      const frontWorst = getSideMaxRatio('front').worst;
- w, 0, lines.outerR * w, h);
-      drawLine(0, lines.outerT * h, w, lines.outerT * h);
-      drawLine(0, lines.outerB * h, w, lines.outerB * h);
-
-      ctx.strokeStyle = '#f43f5e';
-      drawLine(lines.innerL * w, 0, lines.innerL * w, h);
-      drawLine(lines.innerR * w, 0, lines.innerR * w, h);
-      drawLine(0, lines.innerT * h, w, lines.innerT * h);
-      drawLine(0, lines.innerB * h, w, lines.innerB * h);
-    }
-
-    function drawLine(x1, y1, x2, y2) {
-      ctx.beginPath(); ctx.moveTo(x1, y1); ctx.lineTo(x2, y2); ctx.stroke();
-    }
-
-    function getSideMaxRatio(side) {
-      const l = state[side].lines;
-      const leftB = Math.max(0.001, l.innerL - l.outerL);
-      const rightB = Math.max(0.001, l.outerR - l.innerR);
-      const lPct = Math.round((leftB / (leftB + rightB)) * 100);
-      const rPct = 100 - lPct;
-
-      const topB = Math.max(0.001, l.innerT - l.outerT);
-      const botB = Math.max(0.001, l.outerB - l.innerB);
-      const tPct = Math.round((topB / (topB + botB)) * 100);
-      const bPct = 100 - tPct;
-
       return { lPct, rPct, tPct, bPct, worst: Math.max(lPct, rPct, tPct, bPct) };
     }
 
@@ -447,14 +338,8 @@
       const cornerScore = parseInt(document.getElementById('selCorners').value, 10);
       const surfaceScore = parseInt(document.getElementById('selSurface').value, 10);
 
-      let centeringCap = 10;
-      if (frontWorst > 60) centeringCap = 8;
-      else if (frontWorst > 55) centeringCap = 9;
-
-      if (state.back.img) {
-        const backLimit = currentGrader === 'BGS' ? 60 : 75;
-        if (backWorst > backLimit) centeringCap = Math.min(centeringCap, 9);
-      }
+      let centeringCap = frontWorst > 60 ? 8 : (frontWorst > 55 ? 9 : 10);
+      if (state.back.img && backWorst > (currentGrader === 'BGS' ? 60 : 75)) centeringCap = Math.min(centeringCap, 9);
 
       const finalGrade = Math.min(centeringCap, cornerScore, surfaceScore);
       const estEl = document.getElementById('overallEstimate');
@@ -479,34 +364,35 @@
       const el = document.getElementById(id);
       if (currentGrader === 'PSA') {
         if (currentSide === 'front') {
-          if (maxSide <= 55) { el.textContent = 'PSA 10 Eligible (<=55/45)'; el.className = 'grade-pill pass'; }
-          else if (maxSide <= 60) { el.textContent = 'PSA 9 / Borderline 10 (<=60/40)'; el.className = 'grade-pill warn'; }
-          else { el.textContent = 'Off-Center (>60/40)'; el.className = 'grade-pill fail'; }
+          el.textContent = maxSide <= 55 ? 'PSA 10 Eligible (<=55/45)' : (maxSide <= 60 ? 'PSA 9 / Borderline 10 (<=60/40)' : 'Off-Center (>60/40)');
+          el.className = 'grade-pill ' + (maxSide <= 55 ? 'pass' : (maxSide <= 60 ? 'warn' : 'fail'));
         } else {
-          if (maxSide <= 75) { el.textContent = 'PSA 10 Back Eligible (<=75/25)'; el.className = 'grade-pill pass'; }
-          else if (maxSide <= 90) { el.textContent = 'PSA 9 Back Eligible (<=90/10)'; el.className = 'grade-pill warn'; }
-          else { el.textContent = 'Off-Center Back (>90/10)'; el.className = 'grade-pill fail'; }
+          el.textContent = maxSide <= 75 ? 'PSA 10 Back Eligible (<=75/25)' : (maxSide <= 90 ? 'PSA 9 Back Eligible (<=90/10)' : 'Off-Center Back (>90/10)');
+          el.className = 'grade-pill ' + (maxSide <= 75 ? 'pass' : (maxSide <= 90 ? 'warn' : 'fail'));
         }
       } else if (currentGrader === 'BGS') {
         if (currentSide === 'front') {
-          if (maxSide === 50) { el.textContent = 'BGS 10 Black Label (50/50)'; el.className = 'grade-pill pass'; }
-          else if (maxSide <= 55) { el.textContent = 'BGS 9.5 Gem Mint (<=55/45)'; el.className = 'grade-pill pass'; }
-          else if (maxSide <= 60) { el.textContent = 'BGS 9 Mint (<=60/40)'; el.className = 'grade-pill warn'; }
-          else { el.textContent = 'Below BGS 9 (>60/40)'; el.className = 'grade-pill fail'; }
+          el.textContent = maxSide <= 55 ? 'PSA 10 Eligible (<=55/45)' : (maxSide <= 60 ? 'PSA 9 / Borderline 10 (<=60/40)' : 'Off-Center (>60/40)');
+          el.className = 'grade-pill ' + (maxSide <= 55 ? 'pass' : (maxSide <= 60 ? 'warn' : 'fail'));
         } else {
-          if (maxSide <= 60) { el.textContent = 'BGS 10 Back Eligible (<=60/40)'; el.className = 'grade-pill pass'; }
-          else if (maxSide <= 65) { el.textContent = 'BGS 9.5 Back Eligible (<=65/35)'; el.className = 'grade-pill warn'; }
-          else { el.textContent = 'Off-Center Back (>65/35)'; el.className = 'grade-pill fail'; }
+          el.textContent = maxSide <= 75 ? 'PSA 10 Back Eligible (<=75/25)' : (maxSide <= 90 ? 'PSA 9 Back Eligible (<=90/10)' : 'Off-Center Back (>90/10)');
+          el.className = 'grade-pill ' + (maxSide <= 75 ? 'pass' : (maxSide <= 90 ? 'warn' : 'fail'));
         }
-      } else if (currentGrader === 'CGC') {
+      } else if (currentGrader === 'BGS') {
         if (currentSide === 'front') {
-          if (maxSide === 50) { el.textContent = 'CGC Pristine 10 (50/50)'; el.className = 'grade-pill pass'; }
-          else if (maxSide <= 55) { el.textContent = 'CGC Gem Mint 10 (<=55/45)'; el.className = 'grade-pill pass'; }
-          else if (maxSide <= 60) { el.textContent = 'CGC Mint 9 (<=60/40)'; el.className = 'grade-pill warn'; }
-          else { el.textContent = 'Below CGC 9 (>60/40)'; el.className = 'grade-pill fail'; }
+          el.textContent = maxSide === 50 ? 'BGS 10 Black Label (50/50)' : (maxSide <= 55 ? 'BGS 9.5 Gem Mint (<=55/45)' : (maxSide <= 60 ? 'BGS 9 Mint (<=60/40)' : 'Below BGS 9 (>60/40)'));
+          el.className = 'grade-pill ' + (maxSide <= 55 ? 'pass' : (maxSide <= 60 ? 'warn' : 'fail'));
         } else {
-          if (maxSide <= 75) { el.textContent = 'CGC 10 Back Eligible (<=75/25)'; el.className = 'grade-pill pass'; }
-          else { el.textContent = 'Off-Center Back (>75/25)'; el.className = 'grade-pill fail'; }
+          el.textContent = maxSide <= 60 ? 'BGS 10 Back Eligible (<=60/40)' : (maxSide <= 65 ? 'BGS 9.5 Back Eligible (<=65/35)' : 'Off-Center Back (>65/35)');
+          el.className = 'grade-pill ' + (maxSide <= 60 ? 'pass' : (maxSide <= 65 ? 'warn' : 'fail'));
+        }
+      } else {
+        if (currentSide === 'front') {
+          el.textContent = maxSide === 50 ? 'CGC Pristine 10 (50/50)' : (maxSide <= 55 ? 'CGC Gem Mint 10 (<=55/45)' : (maxSide <= 60 ? 'CGC Mint 9 (<=60/40)' : 'Below CGC 9 (>60/40)'));
+          el.className = 'grade-pill ' + (maxSide <= 55 ? 'pass' : (maxSide <= 60 ? 'warn' : 'fail'));
+        } else {
+          el.textContent = maxSide <= 75 ? 'CGC 10 Back Eligible (<=75/25)' : 'Off-Center Back (>75/25)';
+          el.className = 'grade-pill ' + (maxSide <= 75 ? 'pass' : 'fail');
         }
       }
     }
@@ -515,19 +401,16 @@
       const img = state[currentSide].img;
       const lines = state[currentSide].lines;
       if (!img || !img.width) return;
-      const w = canvas.width, h = canvas.height;
-      const zoomSize = Math.min(w, h) * 0.14;
-      const corners = [
+      const w = canvas.width, h = canvas.height, z = Math.min(w, h) * 0.14;
+      [
         { id: 'cTL', x: lines.outerL * w, y: lines.outerT * h, ox: -0.2, oy: -0.2 },
         { id: 'cTR', x: lines.outerR * w, y: lines.outerT * h, ox: -0.8, oy: -0.2 },
         { id: 'cBL', x: lines.outerL * w, y: lines.outerB * h, ox: -0.2, oy: -0.8 },
         { id: 'cBR', x: lines.outerR * w, y: lines.outerB * h, ox: -0.8, oy: -0.8 }
-      ];
-      corners.forEach(c => {
+      ].forEach(c => {
         const cCtx = document.getElementById(c.id).getContext('2d');
-        cCtx.fillStyle = '#020617';
-        cCtx.fillRect(0, 0, 160, 160);
-        cCtx.drawImage(img, c.x + c.ox * zoomSize, c.y + c.oy * zoomSize, zoomSize, zoomSize, 0, 0, 160, 160);
+        cCtx.fillStyle = '#020617'; cCtx.fillRect(0, 0, 160, 160);
+        cCtx.drawImage(img, c.x + c.ox * z, c.y + c.oy * z, z, z, 0, 0, 160, 160);
       });
     }
 
@@ -542,20 +425,13 @@
     function startDrag(e) {
       const lines = state[currentSide].lines;
       const p = getPos(e);
-      const tol = 0.05;
-      const checks = [
-        { name: 'outerL', dist: Math.abs(p.x - lines.outerL) },
-        { name: 'outerR', dist: Math.abs(p.x - lines.outerR) },
-        { name: 'innerL', dist: Math.abs(p.x - lines.innerL) },
-        { name: 'innerR', dist: Math.abs(p.x - lines.innerR) },
-        { name: 'outerT', dist: Math.abs(p.y - lines.outerT) },
-        { name: 'outerB', dist: Math.abs(p.y - lines.outerB) },
-        { name: 'innerT', dist: Math.abs(p.y - lines.innerT) },
-        { name: 'innerB', dist: Math.abs(p.y - lines.innerB) }
-      ];
-      checks.sort((a, b) => a.dist - b.dist);
-      const closest = checks.shift();
-      if (closest && closest.dist < tol) dragging = closest.name;
+      const best = [
+        { name: 'outerL', dist: Math.abs(p.x - lines.outerL) }, { name: 'outerR', dist: Math.abs(p.x - lines.outerR) },
+        { name: 'innerL', dist: Math.abs(p.x - lines.innerL) }, { name: 'innerR', dist: Math.abs(p.x - lines.innerR) },
+        { name: 'outerT', dist: Math.abs(p.y - lines.outerT) }, { name: 'outerB', dist: Math.abs(p.y - lines.outerB) },
+        { name: 'innerT', dist: Math.abs(p.y - lines.innerT) }, { name: 'innerB', dist: Math.abs(p.y - lines.innerB) }
+      ].reduce((min, cur) => cur.dist < min.dist ? cur : min);
+      if (best.dist < 0.05) dragging = best.name;
     }
 
     function onDrag(e) {
