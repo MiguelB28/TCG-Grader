@@ -1,0 +1,223 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <meta name="theme-color" content="#0f172a" />
+  <title>TCG Pre-Grader | Centering & Corner Scanner</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
+    body { background: #0f172a; color: #f8fafc; min-height: 100vh; display: flex; flex-direction: column; align-items: center; padding: 14px; }
+    header { width: 100%; max-width: 520px; display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; }
+    h1 { font-size: 1.15rem; font-weight: 700; color: #38bdf8; }
+    .badge { background: #1e293b; border: 1px solid #334155; padding: 4px 10px; border-radius: 999px; font-size: 0.75rem; color: #94a3b8; }
+    .card-box { width: 100%; max-width: 520px; background: #1e293b; border-radius: 14px; padding: 14px; border: 1px solid #334155; margin-bottom: 14px; }
+    .controls { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 12px; }
+    button, label.btn { flex: 1; min-width: 120px; background: #0284c7; color: white; border: none; padding: 10px 12px; border-radius: 10px; font-weight: 600; font-size: 0.9rem; text-align: center; cursor: pointer; }
+    button.secondary { background: #334155; color: #e2e8f0; }
+    button.active { background: #10b981; }
+    input[type="file"] { display: none; }
+    .canvas-wrap { position: relative; width: 100%; background: #020617; border-radius: 10px; overflow: hidden; display: flex; justify-content: center; align-items: center; touch-action: none; }
+    canvas#mainCanvas { max-width: 100%; max-height: 62vh; display: block; cursor: crosshair; }
+    video#camera { width: 100%; max-height: 62vh; display: none; object-fit: cover; }
+    .tip { font-size: 0.78rem; color: #94a3b8; margin-top: 8px; line-height: 1.4; }
+    .results-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 12px; }
+    .stat { background: #0f172a; padding: 10px; border-radius: 10px; border: 1px solid #334155; }
+    .stat-label { font-size: 0.75rem; color: #94a3b8; }
+    .stat-val { font-size: 1.2rem; font-weight: 700; margin-top: 2px; color: #f8fafc; }
+    .grade-pill { display: inline-block; margin-top: 4px; padding: 2px 8px; border-radius: 6px; font-size: 0.72rem; font-weight: 700; }
+    .pass { background: rgba(16,185,129,0.2); color: #34d399; }
+    .warn { background: rgba(245,158,11,0.2); color: #fbbf24; }
+    .fail { background: rgba(239,68,68,0.2); color: #f87171; }
+    .corners-title { font-size: 0.85rem; font-weight: 700; margin-bottom: 8px; color: #cbd5e1; }
+    .corners-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+    .corner-item { background: #020617; border: 1px solid #334155; border-radius: 8px; padding: 6px; text-align: center; }
+    .corner-item canvas { width: 100%; aspect-ratio: 1/1; border-radius: 6px; display: block; margin-bottom: 4px; image-rendering: auto; }
+    .corner-item span { font-size: 0.72rem; color: #94a3b8; }
+  </style>
+</head>
+<body>
+
+  <header>
+    <h1>TCG Pre-Grader</h1>
+    <span class="badge">Free Beta</span>
+  </header>
+
+  <div class="card-box">
+    <div class="controls">
+      <button id="startCamBtn">📷 Open Camera</button>
+      <button id="snapBtn" class="active" style="display:none;">📸 Snap Card</button>
+      <label class="btn secondary">
+        🖼️ Upload Photo
+        <input type="file" id="uploadInput" accept="image/*" />
+      </label>
+    </div>
+
+    <div class="canvas-wrap">
+      <video id="camera" autoplay playsinline></video>
+      <canvas id="mainCanvas"></canvas>
+    </div>
+    <p class="tip">
+      <strong>Tip:</strong> Place card flat on a dark surface with no glare. Drag the <span style="color:#38bdf8;">blue outer lines</span> to the card edges and <span style="color:#f43f5e;">red inner lines</span> to the artwork border.
+    </p>
+  </div>
+
+  <div class="card-box">
+    <div class="results-grid">
+      <div class="stat">
+        <div class="stat-label">Left / Right Centering</div>
+        <div class="stat-val" id="lrRatio">50 / 50</div>
+        <div class="grade-pill pass" id="lrGrade">PSA 10 Eligible (≤55/45)</div>
+      </div>
+      <div class="stat">
+        <div class="stat-label">Top / Bottom Centering</div>
+        <div class="stat-val" id="tbRatio">50 / 50</div>
+        <div class="grade-pill pass" id="tbGrade">PSA 10 Eligible (≤55/45)</div>
+      </div>
+    </div>
+
+    <div class="corners-title">🔍 4-Corner Zoom Loupe (Auto-Cropped from Outer Edges)</div>
+    <div class="corners-grid">
+      <div class="corner-item"><canvas id="cTL" width="160" height="160"></canvas><span>Top-Left Corner</span></div>
+      <div class="corner-item"><canvas id="cTR" width="160" height="160"></canvas><span>Top-Right Corner</span></div>
+      <div class="corner-item"><canvas id="cBL" width="160" height="160"></canvas><span>Bottom-Left Corner</span></div>
+      <div class="corner-item"><canvas id="cBR" width="160" height="160"></canvas><span>Bottom-Right Corner</span></div>
+    </div>
+  </div>
+
+  <script>
+    const video = document.getElementById('camera');
+    const canvas = document.getElementById('mainCanvas');
+    const ctx = canvas.getContext('2d');
+    const startCamBtn = document.getElementById('startCamBtn');
+    const snapBtn = document.getElementById('snapBtn');
+    const uploadInput = document.getElementById('uploadInput');
+
+    let img = new Image();
+    let stream = null;
+    let dragging = null;
+
+    // Normalized line positions (0 to 1)
+    let lines = {
+      outerL: 0.15, outerR: 0.85, outerT: 0.10, outerB: 0.90,
+      innerL: 0.22, innerR: 0.78, innerT: 0.16, innerB: 0.84
+    };
+
+    function drawPlaceholder() {
+      canvas.width = 400;
+      canvas.height = 540;
+      ctx.fillStyle = '#0f172a';
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+      ctx.fillStyle = '#64748b';
+      ctx.font = '16px sans-serif';
+      ctx.textAlign = 'center';
+      ctx.fillText('Tap "Open Camera" or "Upload Photo"', 200, 260);
+      drawGuides();
+    }
+
+    startCamBtn.onclick = async () => {
+      try {
+        stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } });
+        video.srcObject = stream;
+        video.style.display = 'block';
+        canvas.style.display = 'none';
+        snapBtn.style.display = 'block';
+        startCamBtn.style.display = 'none';
+      } catch (err) {
+        alert('Camera access blocked or unavailable. Use "Upload Photo" instead!');
+      }
+    };
+
+    snapBtn.onclick = () => {
+      canvas.width = video.videoWidth;
+      canvas.height = video.videoHeight;
+      ctx.drawImage(video, 0, 0);
+      img.src = canvas.toDataURL('image/png');
+      if (stream) stream.getTracks().forEach(t => t.stop());
+      video.style.display = 'none';
+      canvas.style.display = 'block';
+      snapBtn.style.display = 'none';
+      startCamBtn.style.display = 'block';
+    };
+
+    uploadInput.onchange = (e) => {
+      const file = e.target.files[0];
+      if (!file) return;
+      const reader = new FileReader();
+      reader.onload = (ev) => { img.src = ev.target.result; };
+      reader.readAsDataURL(file);
+    };
+
+    img.onload = () => {
+      const maxW = 800;
+      const scale = img.width > maxW ? maxW / img.width : 1;
+      canvas.width = img.width * scale;
+      canvas.height = img.height * scale;
+      render();
+    };
+
+    function render() {
+      if (img.src) {
+        ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+      } else {
+        ctx.fillStyle = '#0f172a';
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+      }
+      drawGuides();
+      updateCalculations();
+      updateCorners();
+    }
+
+    function drawGuides() {
+      const w = canvas.width, h = canvas.height;
+      ctx.lineWidth = Math.max(2, w / 220);
+
+      // Outer box (Blue)
+      ctx.strokeStyle = '#38bdf8';
+      drawLine(lines.outerL * w, 0, lines.outerL * w, h);
+      drawLine(lines.outerR * w, 0, lines.outerR * w, h);
+      drawLine(0, lines.outerT * h, w, lines.outerT * h);
+      drawLine(0, lines.outerB * h, w, lines.outerB * h);
+
+      // Inner box (Red)
+      ctx.strokeStyle = '#f43f5e';
+      drawLine(lines.innerL * w, 0, lines.innerL * w, h);
+      drawLine(lines.innerR * w, 0, lines.innerR * w, h);
+      drawLine(0, lines.innerT * h, w, lines.innerT * h);
+      drawLine(0, lines.innerB * h, w, lines.innerB * h);
+    }
+
+    function drawLine(x1, y1, x2, y2) {
+      ctx.beginPath(); ctx.moveTo(x1, y1); ctx.lineTo(x2, y2); ctx.stroke();
+    }
+
+    function updateCalculations() {
+      const leftB = Math.max(0.001, lines.innerL - lines.outerL);
+      const rightB = Math.max(0.001, lines.outerR - lines.innerR);
+      const lrTotal = leftB + rightB;
+      const lPct = Math.round((leftB / lrTotal) * 100);
+      const rPct = 100 - lPct;
+
+      const topB = Math.max(0.001, lines.innerT - lines.outerT);
+      const botB = Math.max(0.001, lines.outerB - lines.innerB);
+      const tbTotal = topB + botB;
+      const tPct = Math.round((topB / tbTotal) * 100);
+      const bPct = 100 - tPct;
+
+      document.getElementById('lrRatio').textContent = `${lPct} / ${rPct}`;
+      document.getElementById('tbRatio').textContent = `${tPct} / ${bPct}`;
+      setGradeBadge('lrGrade', Math.max(lPct, rPct));
+      setGradeBadge('tbGrade', Math.max(tPct, bPct));
+    }
+
+    function setGradeBadge(id, maxSide) {
+      const el = document.getElementById(id);
+      if (maxSide <= 55) {
+        el.textContent = 'PSA 10 Eligible (≤55/45)';
+        el.className = 'grade-pill pass';
+      } else if (maxSide <= 60) {
+        el.textContent = 'PSA 9 / Borderline 10 (≤60/40)';
+        el.className = 'grade-pill warn';
+      } else {
