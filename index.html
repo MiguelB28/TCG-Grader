@@ -21,8 +21,8 @@
     .tab-btn { flex: 1; background: transparent; color: #94a3b8; border: none; padding: 8px; border-radius: 7px; font-weight: 600; font-size: 0.85rem; cursor: pointer; }
     .tab-btn.selected { background: #0284c7; color: #ffffff; }
     .controls { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 12px; }
-    button.action, label.btn { flex: 1; min-width: 120px; background: #0284c7; color: white; border: none; padding: 10px 12px; border-radius: 10px; font-weight: 600; font-size: 0.9rem; text-align: center; cursor: pointer; }
-    button.secondary { background: #334155; color: #e2e8f0; }
+    button.action, label.btn { flex: 1; min-width: 120px; background: #0284c7; color: white; border: none; padding: 11px 12px; border-radius: 10px; font-weight: 600; font-size: 0.9rem; text-align: center; cursor: pointer; }
+    button.secondary, label.secondary { background: #334155; color: #e2e8f0; }
     button.snap { background: #10b981; }
     input[type="file"] { display: none; }
     .canvas-wrap { position: relative; width: 100%; background: #020617; border-radius: 10px; overflow: hidden; display: flex; justify-content: center; align-items: center; touch-action: none; }
@@ -73,20 +73,21 @@
     </div>
 
     <div class="controls">
-      <button class="action" id="startCamBtn">📷 Open Camera</button>
-      <button class="action snap" id="snapBtn" style="display:none;">📸 Snap Card</button>
+      <label class="btn">
+        📸 Take Photo
+        <input type="file" id="cameraInput" accept="image/*" capture="environment" />
+      </label>
       <label class="btn secondary">
-        🖼️ Upload Photo
+        🖼️ Photo Library
         <input type="file" id="uploadInput" accept="image/*" />
       </label>
     </div>
 
     <div class="canvas-wrap">
-      <video id="camera" autoplay playsinline></video>
       <canvas id="mainCanvas"></canvas>
     </div>
     <p class="tip">
-      <strong>Guides:</strong> <span style="color:#38bdf8;">Blue</span> = card edge • <span style="color:#f43f5e;">Red</span> = art border • <span style="color:#22c55e;">Dashed Green</span> = max <strong>55/45</strong> (or 75/25 back) safe zone. Keep red lines inside the green zone!
+      <strong>Guides:</strong> <span style="color:#38bdf8;">Blue</span> = card edge • <span style="color:#f43f5e;">Red</span> = art border • <span style="color:#22c55e;">Dashed Green</span> = max <strong>55/45</strong> (or 75/25 back) safe zone.
     </p>
   </div>
 
@@ -140,7 +141,6 @@
   <div class="card-box">
     <div class="section-title">🛡️ Grading Prep & Chase Packs</div>
     <div class="shop-links">
-      <!-- Replace # with your eBay Partner Network / TCGplayer affiliate links -->
       <a class="shop-btn" href="https://ebay.ca" target="_blank" rel="noopener">
         Card Saver 1 + Sleeves
         <span>PSA Submission Prep →</span>
@@ -163,3 +163,5 @@
       const ictx = iconCanvas.getContext('2d');
       ictx.fillStyle = '#0f172a'; ictx.fillRect(0, 0, 512, 512);
       ictx.strokeStyle = '#38bdf8'; ictx.lineWidth = 28; ictx.strokeRect(96, 56, 320, 400);
+      ictx.strokeStyle = '#22c55e'; ictx.lineWidth = 18; ictx.strokeRect(136, 96, 240, 320);
+      ictx.fillStyle = '#ffffff'; ictx.font = 'bold 76px sans-serif'; ictx.textAlign = 'center';
