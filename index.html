@@ -58,19 +58,19 @@
 
   <div class="card-box">
     <div class="toggle-row">
-      <button class="tab-btn selected" id="sideFront" onclick="setSide('front')">Front of Card</button>
-      <button class="tab-btn" id="sideBack" onclick="setSide('back')">Back of Card</button>
+      <button type="button" class="tab-btn selected" id="sideFront">Front of Card</button>
+      <button type="button" class="tab-btn" id="sideBack">Back of Card</button>
     </div>
 
     <div class="toggle-row">
-      <button class="tab-btn selected" id="graderPSA" onclick="setGrader('PSA')">PSA</button>
-      <button class="tab-btn" id="graderBGS" onclick="setGrader('BGS')">BGS</button>
-      <button class="tab-btn" id="graderCGC" onclick="setGrader('CGC')">CGC</button>
+      <button type="button" class="tab-btn selected" id="graderPSA">PSA</button>
+      <button type="button" class="tab-btn" id="graderBGS">BGS</button>
+      <button type="button" class="tab-btn" id="graderCGC">CGC</button>
     </div>
 
     <div class="controls">
-      <button class="action" id="openCamBtn">📷 Live Camera</button>
-      <button class="action snap" id="captureBtn" style="display:none;">📸 Snap Card</button>
+      <button type="button" class="action" id="openCamBtn">📷 Live Camera</button>
+      <button type="button" class="action snap" id="captureBtn" style="display:none;">📸 Snap Card</button>
       <label class="btn secondary" for="uploadInput">🖼️ Pick Photo</label>
       <input type="file" id="uploadInput" accept="image/*" />
     </div>
@@ -109,7 +109,7 @@
     <div class="section-title">📋 Quick Defect Check (Overall Estimate)</div>
     <div class="subgrade-row">
       <label>Corners (from Loupe above)</label>
-      <select id="selCorners" onchange="updateCalculations()">
+      <select id="selCorners">
         <option value="10">Sharp / No Whitening (10)</option>
         <option value="9">Tiny Speck on 1 Corner (9)</option>
         <option value="8">Visible Wear / Dings (8 or lower)</option>
@@ -117,7 +117,7 @@
     </div>
     <div class="subgrade-row">
       <label>Edges & Surface (tilt under light)</label>
-      <select id="selSurface" onchange="updateCalculations()">
+      <select id="selSurface">
         <option value="10">Clean Holo / No Print Lines (10)</option>
         <option value="9">Light Print Line / Minor Edge (9)</option>
         <option value="8">Scratches / Dent / Crease (≤8)</option>
@@ -171,3 +171,410 @@
     };
 
     function setSide(side) {
+      currentSide = side;
+      <div class="big-grade" id="overallEstimate">PSA 10 Contender</div>
+      <div class="stat-label" id="overallNote">Centering within 55/45 + clean corners & surface</div>
+    </div>
+  </div>
+
+  <div class="card-box">
+    <div class="section-title">🛡️ Grading Prep & Chase Packs</div>
+    <div class="shop-links">
+      <a class="shop-btn" href="https://ebay.ca" target="_blank" rel="noopener">
+        Card Saver 1 + Sleeves
+        <span>PSA Submission Prep →</span>
+      </a>
+      <a class="shop-btn" href="https://ebay.ca" target="_blank" rel="noopener">
+        Sealed Pokémon Packs
+        <span>Shop Live Deals →</span>
+      </a>
+    </div>
+  </div>
+
+  <script>
+    const video = document.getElementById('liveVideo');
+    const canvas = document.getElementById('mainCanvas');
+    const ctx = canvas.getContext('2d');
+    const openCamBtn = document.getElementById('openCamBtn');
+    const captureBtn = document.getElementById('captureBtn');
+    const uploadInput = document.getElementById('uploadInput');
+    const statusTip = document.getElementById('statusTip');
+
+    let currentSide = 'front';
+    let currentGrader = 'PSA';
+    let activeStream = null;
+    let dragging = null;
+
+    const state = {
+      front: {
+        img: null,
+        lines: { outerL: 0.15, outerR: 0.85, outerT: 0.10, outerB: 0.90, innerL: 0.22, innerR: 0.78, innerT: 0.16, innerB: 0.84 }
+      },
+      back: {
+        img: null,
+        lines: { outerL: 0.15, outerR: 0.85, outerT: 0.10, outerB: 0.90, innerL: 0.22, innerR: 0.78, innerT: 0.16, innerB: 0.84 }
+      }
+    };
+
+    function setSide(side) {
+      currentSide = side;
+      document.getElementById('sideFront').classList.toggle('selected', side === 'front');
+      document.getElementById('sideBack').classList.toggle('selected', side === 'back');
+      document.getElementById('lrLabel').textContent = (side === 'front' ? 'Front' : 'Back') + ' Left / Right';
+      document.getElementById('tbLabel').textContent = (side === 'front' ? 'Front' : 'Back') + ' Top / Bottom';
+      loadCurrentImage();
+    }
+
+    function setGrader(grader) {
+      currentGrader = grader;
+      document.getElementById('graderPSA').classList.toggle('selected', grader === 'PSA');
+      document.getElementById('graderBGS').classList.toggle('selected', grader === 'BGS');
+      document.getElementById('graderCGC').classList.toggle('selected', grader === 'CGC');
+      updateCalculations();
+    }
+
+    document.getElementById('sideFront').addEventListener('click', () => setSide('front'));
+    document.getElementById('sideBack').addEventListener('click', () => setSide('back'));
+    document.getElementById('graderPSA').addEventListener('click', () => setGrader('PSA'));
+    document.getElementById('graderBGS').addEventListener('click', () => setGrader('BGS'));
+    document.getElementById('graderCGC').addEventListener('click', () => setGrader('CGC'));
+    document.getElementById('selCorners').addEventListener('change', updateCalculations);
+    document.getElementById('selSurface').addEventListener('change', updateCalculations);
+
+    openCamBtn.addEventListener('click', async () => {
+      try {
+        activeStream = await navigator.mediaDevices.getUserMedia({
+          video: { facingMode: { ideal: 'environment' } },
+          audio: false
+        });
+        video.srcObject = activeStream;
+        await video.play();
+        video.style.display = 'block';
+        canvas.style.display = 'none';
+        openCamBtn.style.display = 'none';
+        captureBtn.style.display = 'block';
+        statusTip.textContent = 'Hold phone flat above card and tap "Snap Card".';
+      } catch (err) {
+        statusTip.textContent = 'Live camera blocked—tap "Pick Photo" to choose a picture from your phone.';
+      }
+    });
+
+    captureBtn.addEventListener('click', () => {
+      if (!video.videoWidth) return;
+      const offCanvas = document.createElement('canvas');
+      offCanvas.width = video.videoWidth;
+      offCanvas.height = video.videoHeight;
+      offCanvas.getContext('2d').drawImage(video, 0, 0);
+
+      if (activeStream) {
+        activeStream.getTracks().forEach(t => t.stop());
+        activeStream = null;
+      }
+
+      state[currentSide].img = offCanvas;
+      video.style.display = 'none';
+      canvas.style.display = 'block';
+      captureBtn.style.display = 'none';
+      openCamBtn.style.display = 'block';
+      statusTip.innerHTML = '<strong>Guides:</strong> <span style="color:#38bdf8;">Blue</span> = card edge • <span style="color:#f43f5e;">Red</span> = art border • <span style="color:#22c55e;">Dashed Green</span> = max <strong>55/45</strong> safe zone.';
+      loadCurrentImage();
+    });
+
+    uploadInput.addEventListener('change', (e) => {
+      const file = e.target.files && e.target.files.item(0);
+      if (!file) return;
+      const url = URL.createObjectURL(file);
+      const rawImg = new Image();
+      rawImg.onload = () => {
+        const maxDim = 900;
+        const scale = Math.max(rawImg.width, rawImg.height) > maxDim ? maxDim / Math.max(rawImg.width, rawImg.height) : 1;
+        const offCanvas = document.createElement('canvas');
+        offCanvas.width = Math.round(rawImg.width * scale);
+        offCanvas.height = Math.round(rawImg.height * scale);
+        offCanvas.getContext('2d').drawImage(rawImg, 0, 0, offCanvas.width, offCanvas.height);
+        URL.revokeObjectURL(url);
+        state[currentSide].img = offCanvas;
+        loadCurrentImage();
+      };
+      rawImg.src = url;
+      e.target.value = '';
+    });
+
+    function loadCurrentImage() {
+      const img = state[currentSide].img;
+      if (img && img.width > 0) {
+        canvas.width = img.width;
+        canvas.height = img.height;
+        render();
+      } else {
+        canvas.width = 400;
+        canvas.height = 540;
+        ctx.fillStyle = '#0f172a';
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+        ctx.fillStyle = '#64748b';
+        ctx.font = '15px sans-serif';
+        ctx.textAlign = 'center';
+        ctx.fillText('Tap "Live Camera" or "Pick Photo" (' + currentSide.toUpperCase() + ')', 200, 265);
+        drawGuides();
+        updateCalculations();
+        clearCorners();
+      }
+    }
+
+    function clearCorners() {
+      ['cTL', 'cTR', 'cBL', 'cBR'].forEach(id => {
+        const cCtx = document.getElementById(id).getContext('2d');
+        cCtx.fillStyle = '#020617';
+        cCtx.fillRect(0, 0, 160, 160);
+      });
+    }
+
+    function render() {
+      const img = state[currentSide].img;
+      if (img && img.width > 0) ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+      drawGuides();
+      updateCalculations();
+      updateCorners();
+    }
+
+    function drawGuides() {
+      const lines = state[currentSide].lines;
+      const w = canvas.width, h = canvas.height;
+      ctx.lineWidth = Math.max(2, w / 220);
+
+      const totalLRBorder = Math.max(0.002, (lines.innerL - lines.outerL) + (lines.outerR - lines.innerR));
+      const totalTBBorder = Math.max(0.002, (lines.innerT - lines.outerT) + (lines.outerB - lines.innerB));
+      const minPct = currentSide === 'front' ? 0.45 : 0.25;
+      const maxPct = currentSide === 'front' ? 0.55 : 0.75;
+
+      const safeLMin = lines.outerL + totalLRBorder * minPct;
+      const safeLMax = lines.outerL + totalLRBorder * maxPct;
+      const safeRMin = lines.outerR - totalLRBorder * maxPct;
+      const safeRMax = lines.outerR - totalLRBorder * minPct;
+
+      const safeTMin = lines.outerT + totalTBBorder * minPct;
+      const safeTMax = lines.outerT + totalTBBorder * maxPct;
+      const safeBMin = lines.outerB - totalTBBorder * maxPct;
+      const safeBMax = lines.outerB - totalTBBorder * minPct;
+
+      ctx.save();
+      ctx.strokeStyle = 'rgba(34, 197, 94, 0.85)';
+      ctx.setLineDash(new Array(6, 4));
+      ctx.lineWidth = Math.max(1.5, w / 300);
+      [safeLMin, safeLMax, safeRMin, safeRMax].forEach(x => drawLine(x * w, lines.outerT * h, x * w, lines.outerB * h));
+      [safeTMin, safeTMax, safeBMin, safeBMax].forEach(y => drawLine(lines.outerL * w, y * h, lines.outerR * w, y * h));
+      ctx.restore();
+
+      ctx.strokeStyle = '#38bdf8';
+      drawLine(lines.outerL * w, 0, lines.outerL * w, h);
+      drawLine(lines.outerR * w, 0, lines.outerR * w, h);
+      drawLine(0, lines.outerT * h, w, lines.outerT * h);
+      drawLine(0, lines.outerB * h, w, lines.outerB * h);
+
+      ctx.strokeStyle = '#f43f5e';
+      drawLine(lines.innerL * w, 0, lines.innerL * w, h);
+      drawLine(lines.innerR * w, 0, lines.innerR * w, h);
+      drawLine(0, lines.innerT * h, w, lines.innerT * h);
+      drawLine(0, lines.innerB * h, w, lines.innerB * h);
+    }
+
+    function drawLine(x1, y1, x2, y2) {
+      ctx.beginPath(); ctx.moveTo(x1, y1); ctx.lineTo(x2, y2); ctx.stroke();
+    }
+
+    function getSideMaxRatio(side) {
+      const l = state[side].lines;
+      const leftB = Math.max(0.001, l.innerL - l.outerL);
+      const rightB = Math.max(0.001, l.outerR - l.innerR);
+      const lPct = Math.round((leftB / (leftB + rightB)) * 100);
+      const rPct = 100 - lPct;
+
+      const topB = Math.max(0.001, l.innerT - l.outerT);
+      const botB = Math.max(0.001, l.outerB - l.innerB);
+      const tPct = Math.round((topB / (topB + botB)) * 100);
+      const bPct = 100 - tPct;
+
+      return { lPct, rPct, tPct, bPct, worst: Math.max(lPct, rPct, tPct, bPct) };
+    }
+
+    function updateCalculations() {
+      const cur = getSideMaxRatio(currentSide);
+      document.getElementById('lrRatio').textContent = cur.lPct + ' / ' + cur.rPct;
+      document.getElementById('tbRatio').textContent = cur.tPct + ' / ' + cur.bPct;
+      setGradeBadge('lrGrade', Math.max(cur.lPct, cur.rPct));
+      setGradeBadge('tbGrade', Math.max(cur.tPct, cur.bPct));
+
+      const frontWorst = getSideMaxRatio('front').worst;
+ w, 0, lines.outerR * w, h);
+      drawLine(0, lines.outerT * h, w, lines.outerT * h);
+      drawLine(0, lines.outerB * h, w, lines.outerB * h);
+
+      ctx.strokeStyle = '#f43f5e';
+      drawLine(lines.innerL * w, 0, lines.innerL * w, h);
+      drawLine(lines.innerR * w, 0, lines.innerR * w, h);
+      drawLine(0, lines.innerT * h, w, lines.innerT * h);
+      drawLine(0, lines.innerB * h, w, lines.innerB * h);
+    }
+
+    function drawLine(x1, y1, x2, y2) {
+      ctx.beginPath(); ctx.moveTo(x1, y1); ctx.lineTo(x2, y2); ctx.stroke();
+    }
+
+    function getSideMaxRatio(side) {
+      const l = state[side].lines;
+      const leftB = Math.max(0.001, l.innerL - l.outerL);
+      const rightB = Math.max(0.001, l.outerR - l.innerR);
+      const lPct = Math.round((leftB / (leftB + rightB)) * 100);
+      const rPct = 100 - lPct;
+
+      const topB = Math.max(0.001, l.innerT - l.outerT);
+      const botB = Math.max(0.001, l.outerB - l.innerB);
+      const tPct = Math.round((topB / (topB + botB)) * 100);
+      const bPct = 100 - tPct;
+
+      return { lPct, rPct, tPct, bPct, worst: Math.max(lPct, rPct, tPct, bPct) };
+    }
+
+    function updateCalculations() {
+      const cur = getSideMaxRatio(currentSide);
+      document.getElementById('lrRatio').textContent = cur.lPct + ' / ' + cur.rPct;
+      document.getElementById('tbRatio').textContent = cur.tPct + ' / ' + cur.bPct;
+      setGradeBadge('lrGrade', Math.max(cur.lPct, cur.rPct));
+      setGradeBadge('tbGrade', Math.max(cur.tPct, cur.bPct));
+
+      const frontWorst = getSideMaxRatio('front').worst;
+      const backWorst = getSideMaxRatio('back').worst;
+      const cornerScore = parseInt(document.getElementById('selCorners').value, 10);
+      const surfaceScore = parseInt(document.getElementById('selSurface').value, 10);
+
+      let centeringCap = 10;
+      if (frontWorst > 60) centeringCap = 8;
+      else if (frontWorst > 55) centeringCap = 9;
+
+      if (state.back.img) {
+        const backLimit = currentGrader === 'BGS' ? 60 : 75;
+        if (backWorst > backLimit) centeringCap = Math.min(centeringCap, 9);
+      }
+
+      const finalGrade = Math.min(centeringCap, cornerScore, surfaceScore);
+      const estEl = document.getElementById('overallEstimate');
+      const noteEl = document.getElementById('overallNote');
+
+      if (finalGrade === 10) {
+        estEl.textContent = currentGrader === 'BGS' ? 'BGS 9.5 / 10 Contender' : currentGrader + ' 10 Contender';
+        estEl.style.color = '#34d399';
+        noteEl.textContent = 'Front centering <=55/45 + clean corners & surface';
+      } else if (finalGrade === 9) {
+        estEl.textContent = currentGrader + ' 9 Mint Estimate';
+        estEl.style.color = '#fbbf24';
+        noteEl.textContent = frontWorst > 55 ? 'Front centering (' + frontWorst + '/' + (100 - frontWorst) + ') exceeds 55/45' : 'Minor corner or surface flaw limits grade to 9';
+      } else {
+        estEl.textContent = currentGrader + ' 8 or Lower';
+        estEl.style.color = '#f87171';
+        noteEl.textContent = 'Off-center (>60/40) or visible corner/surface wear';
+      }
+    }
+
+    function setGradeBadge(id, maxSide) {
+      const el = document.getElementById(id);
+      if (currentGrader === 'PSA') {
+        if (currentSide === 'front') {
+          if (maxSide <= 55) { el.textContent = 'PSA 10 Eligible (<=55/45)'; el.className = 'grade-pill pass'; }
+          else if (maxSide <= 60) { el.textContent = 'PSA 9 / Borderline 10 (<=60/40)'; el.className = 'grade-pill warn'; }
+          else { el.textContent = 'Off-Center (>60/40)'; el.className = 'grade-pill fail'; }
+        } else {
+          if (maxSide <= 75) { el.textContent = 'PSA 10 Back Eligible (<=75/25)'; el.className = 'grade-pill pass'; }
+          else if (maxSide <= 90) { el.textContent = 'PSA 9 Back Eligible (<=90/10)'; el.className = 'grade-pill warn'; }
+          else { el.textContent = 'Off-Center Back (>90/10)'; el.className = 'grade-pill fail'; }
+        }
+      } else if (currentGrader === 'BGS') {
+        if (currentSide === 'front') {
+          if (maxSide === 50) { el.textContent = 'BGS 10 Black Label (50/50)'; el.className = 'grade-pill pass'; }
+          else if (maxSide <= 55) { el.textContent = 'BGS 9.5 Gem Mint (<=55/45)'; el.className = 'grade-pill pass'; }
+          else if (maxSide <= 60) { el.textContent = 'BGS 9 Mint (<=60/40)'; el.className = 'grade-pill warn'; }
+          else { el.textContent = 'Below BGS 9 (>60/40)'; el.className = 'grade-pill fail'; }
+        } else {
+          if (maxSide <= 60) { el.textContent = 'BGS 10 Back Eligible (<=60/40)'; el.className = 'grade-pill pass'; }
+          else if (maxSide <= 65) { el.textContent = 'BGS 9.5 Back Eligible (<=65/35)'; el.className = 'grade-pill warn'; }
+          else { el.textContent = 'Off-Center Back (>65/35)'; el.className = 'grade-pill fail'; }
+        }
+      } else if (currentGrader === 'CGC') {
+        if (currentSide === 'front') {
+          if (maxSide === 50) { el.textContent = 'CGC Pristine 10 (50/50)'; el.className = 'grade-pill pass'; }
+          else if (maxSide <= 55) { el.textContent = 'CGC Gem Mint 10 (<=55/45)'; el.className = 'grade-pill pass'; }
+          else if (maxSide <= 60) { el.textContent = 'CGC Mint 9 (<=60/40)'; el.className = 'grade-pill warn'; }
+          else { el.textContent = 'Below CGC 9 (>60/40)'; el.className = 'grade-pill fail'; }
+        } else {
+          if (maxSide <= 75) { el.textContent = 'CGC 10 Back Eligible (<=75/25)'; el.className = 'grade-pill pass'; }
+          else { el.textContent = 'Off-Center Back (>75/25)'; el.className = 'grade-pill fail'; }
+        }
+      }
+    }
+
+    function updateCorners() {
+      const img = state[currentSide].img;
+      const lines = state[currentSide].lines;
+      if (!img || !img.width) return;
+      const w = canvas.width, h = canvas.height;
+      const zoomSize = Math.min(w, h) * 0.14;
+      const corners = [
+        { id: 'cTL', x: lines.outerL * w, y: lines.outerT * h, ox: -0.2, oy: -0.2 },
+        { id: 'cTR', x: lines.outerR * w, y: lines.outerT * h, ox: -0.8, oy: -0.2 },
+        { id: 'cBL', x: lines.outerL * w, y: lines.outerB * h, ox: -0.2, oy: -0.8 },
+        { id: 'cBR', x: lines.outerR * w, y: lines.outerB * h, ox: -0.8, oy: -0.8 }
+      ];
+      corners.forEach(c => {
+        const cCtx = document.getElementById(c.id).getContext('2d');
+        cCtx.fillStyle = '#020617';
+        cCtx.fillRect(0, 0, 160, 160);
+        cCtx.drawImage(img, c.x + c.ox * zoomSize, c.y + c.oy * zoomSize, zoomSize, zoomSize, 0, 0, 160, 160);
+      });
+    }
+
+    function getPos(e) {
+      const rect = canvas.getBoundingClientRect();
+      const touch = e.touches && e.touches.item(0);
+      const clientX = touch ? touch.clientX : e.clientX;
+      const clientY = touch ? touch.clientY : e.clientY;
+      return { x: (clientX - rect.left) / rect.width, y: (clientY - rect.top) / rect.height };
+    }
+
+    function startDrag(e) {
+      const lines = state[currentSide].lines;
+      const p = getPos(e);
+      const tol = 0.05;
+      const checks = [
+        { name: 'outerL', dist: Math.abs(p.x - lines.outerL) },
+        { name: 'outerR', dist: Math.abs(p.x - lines.outerR) },
+        { name: 'innerL', dist: Math.abs(p.x - lines.innerL) },
+        { name: 'innerR', dist: Math.abs(p.x - lines.innerR) },
+        { name: 'outerT', dist: Math.abs(p.y - lines.outerT) },
+        { name: 'outerB', dist: Math.abs(p.y - lines.outerB) },
+        { name: 'innerT', dist: Math.abs(p.y - lines.innerT) },
+        { name: 'innerB', dist: Math.abs(p.y - lines.innerB) }
+      ];
+      checks.sort((a, b) => a.dist - b.dist);
+      const closest = checks.shift();
+      if (closest && closest.dist < tol) dragging = closest.name;
+    }
+
+    function onDrag(e) {
+      if (!dragging) return;
+      e.preventDefault();
+      const p = getPos(e);
+      const val = dragging.endsWith('L') || dragging.endsWith('R') ? p.x : p.y;
+      state[currentSide].lines[dragging] = Math.min(0.98, Math.max(0.02, val));
+      render();
+    }
+
+    canvas.addEventListener('mousedown', startDrag);
+    canvas.addEventListener('touchstart', startDrag, { passive: false });
+    window.addEventListener('mousemove', onDrag);
+    window.addEventListener('touchmove', onDrag, { passive: false });
+    window.addEventListener('mouseup', () => dragging = null);
+    window.addEventListener('touchend', () => dragging = null);
+
+    loadCurrentImage();
+  </script>
+</body>
+</html>
